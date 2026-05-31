@@ -1,25 +1,457 @@
-# This workflow will build a Java project with Ant
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-ant
-
-name: Java CI
+name: Build APK
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 11
-      uses: actions/setup-java@v4
-      with:
-        java-version: '11'
-        distribution: 'temurin'
-    - name: Build with Ant
-      run: ant -noinput -buildfile build.xml
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Buat project Android stabil
+        run: |
+          rm -rf app build.gradle.kts settings.gradle.kts gradle.properties
+
+          mkdir -p app/src/main/java/com/digitalizha/virtualclone
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "VirtualCloneStarter"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=false
+          android.enableJetifier=false
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+          }
+
+          android {
+              namespace = "com.digitalizha.virtualclone"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.digitalizha.virtualclone"
+                  minSdk = 23
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">Virtual Clone Starter</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowLightStatusBar">true</item>
+                  <item name="android:colorAccent">#2196F3</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent>
+              </queries>
+
+              <application
+                  android:label="@string/app_name"
+                  android:theme="@style/AppTheme"
+                  android:allowBackup="false"
+                  android:supportsRtl="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/digitalizha/virtualclone/MainActivity.java <<'EOF'
+          package com.digitalizha.virtualclone;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.AdapterView;
+          import android.widget.BaseAdapter;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.ListView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import android.graphics.Typeface;
+
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Comparator;
+          import java.util.List;
+
+          public class MainActivity extends Activity {
+              private ArrayList<AppItem> apps = new ArrayList<AppItem>();
+              private ArrayList<CloneItem> clones = new ArrayList<CloneItem>();
+              private AppAdapter appAdapter;
+              private CloneAdapter cloneAdapter;
+              private SharedPreferences prefs;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  prefs = getSharedPreferences("clone_data", MODE_PRIVATE);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(14), dp(14), dp(14), dp(14));
+
+                  TextView title = new TextView(this);
+                  title.setText("Virtual Clone Starter");
+                  title.setTextSize(24);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  root.addView(title);
+
+                  TextView info = new TextView(this);
+                  info.setText("Pondasi awal aplikasi clone. Pilih app untuk membuat slot clone. Tekan clone untuk membuka aplikasi asli.");
+                  info.setTextSize(14);
+                  info.setPadding(0, dp(6), 0, dp(10));
+                  root.addView(info);
+
+                  Button refresh = new Button(this);
+                  refresh.setText("Refresh Daftar Aplikasi");
+                  root.addView(refresh);
+
+                  TextView cloneTitle = new TextView(this);
+                  cloneTitle.setText("Daftar Clone");
+                  cloneTitle.setTextSize(18);
+                  cloneTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                  cloneTitle.setPadding(0, dp(12), 0, dp(6));
+                  root.addView(cloneTitle);
+
+                  ListView cloneList = new ListView(this);
+                  root.addView(cloneList, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, dp(220)));
+
+                  TextView appTitle = new TextView(this);
+                  appTitle.setText("Aplikasi Terpasang");
+                  appTitle.setTextSize(18);
+                  appTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                  appTitle.setPadding(0, dp(12), 0, dp(6));
+                  root.addView(appTitle);
+
+                  ListView appList = new ListView(this);
+                  root.addView(appList, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+
+                  setContentView(root);
+
+                  appAdapter = new AppAdapter();
+                  cloneAdapter = new CloneAdapter();
+                  appList.setAdapter(appAdapter);
+                  cloneList.setAdapter(cloneAdapter);
+
+                  refresh.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          loadApps();
+                      }
+                  });
+
+                  appList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                      @Override
+                      public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                          AppItem app = apps.get(position);
+                          addClone(app);
+                      }
+                  });
+
+                  cloneList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                      @Override
+                      public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                          CloneItem clone = clones.get(position);
+                          launchOriginalApp(clone.packageName);
+                      }
+                  });
+
+                  cloneList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+                      @Override
+                      public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                          clones.remove(position);
+                          saveClones();
+                          cloneAdapter.notifyDataSetChanged();
+                          Toast.makeText(MainActivity.this, "Clone dihapus", Toast.LENGTH_SHORT).show();
+                          return true;
+                      }
+                  });
+
+                  loadClones();
+                  loadApps();
+              }
+
+              private void loadApps() {
+                  apps.clear();
+
+                  PackageManager pm = getPackageManager();
+                  Intent intent = new Intent(Intent.ACTION_MAIN);
+                  intent.addCategory(Intent.CATEGORY_LAUNCHER);
+
+                  List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
+
+                  for (int i = 0; i < list.size(); i++) {
+                      ResolveInfo info = list.get(i);
+                      String label = info.loadLabel(pm).toString();
+                      String pkg = info.activityInfo.packageName;
+
+                      if (!pkg.equals(getPackageName())) {
+                          apps.add(new AppItem(label, pkg));
+                      }
+                  }
+
+                  Collections.sort(apps, new Comparator<AppItem>() {
+                      @Override
+                      public int compare(AppItem a, AppItem b) {
+                          return a.label.compareToIgnoreCase(b.label);
+                      }
+                  });
+
+                  appAdapter.notifyDataSetChanged();
+                  Toast.makeText(this, "Aplikasi ditemukan: " + apps.size(), Toast.LENGTH_SHORT).show();
+              }
+
+              private void addClone(AppItem app) {
+                  int number = 1;
+
+                  for (int i = 0; i < clones.size(); i++) {
+                      CloneItem item = clones.get(i);
+                      if (item.packageName.equals(app.packageName)) {
+                          number++;
+                      }
+                  }
+
+                  CloneItem clone = new CloneItem(app.label + " Clone #" + number, app.packageName);
+                  clones.add(clone);
+
+                  saveClones();
+                  cloneAdapter.notifyDataSetChanged();
+
+                  Toast.makeText(this, "Clone dibuat: " + clone.label, Toast.LENGTH_SHORT).show();
+              }
+
+              private void launchOriginalApp(String packageName) {
+                  Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+
+                  if (launchIntent != null) {
+                      startActivity(launchIntent);
+                  } else {
+                      Toast.makeText(this, "Aplikasi tidak bisa dibuka", Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              private void loadClones() {
+                  clones.clear();
+
+                  String data = prefs.getString("clones", "");
+                  if (data == null || data.length() == 0) {
+                      return;
+                  }
+
+                  String[] lines = data.split("\\n");
+
+                  for (int i = 0; i < lines.length; i++) {
+                      String line = lines[i];
+                      String[] parts = line.split("\\|", 2);
+
+                      if (parts.length == 2) {
+                          clones.add(new CloneItem(parts[0], parts[1]));
+                      }
+                  }
+              }
+
+              private void saveClones() {
+                  StringBuilder builder = new StringBuilder();
+
+                  for (int i = 0; i < clones.size(); i++) {
+                      CloneItem item = clones.get(i);
+                      String label = item.label.replace("|", " ");
+                      builder.append(label).append("|").append(item.packageName).append("\n");
+                  }
+
+                  prefs.edit().putString("clones", builder.toString()).apply();
+              }
+
+              private int dp(int value) {
+                  return (int) (value * getResources().getDisplayMetrics().density);
+              }
+
+              private class AppAdapter extends BaseAdapter {
+                  @Override
+                  public int getCount() {
+                      return apps.size();
+                  }
+
+                  @Override
+                  public Object getItem(int position) {
+                      return apps.get(position);
+                  }
+
+                  @Override
+                  public long getItemId(int position) {
+                      return position;
+                  }
+
+                  @Override
+                  public View getView(int position, View convertView, ViewGroup parent) {
+                      TextView text = new TextView(MainActivity.this);
+                      AppItem app = apps.get(position);
+                      text.setText(app.label + "\n" + app.packageName + "\nTekan untuk buat clone slot");
+                      text.setTextSize(15);
+                      text.setPadding(dp(10), dp(10), dp(10), dp(10));
+                      return text;
+                  }
+              }
+
+              private class CloneAdapter extends BaseAdapter {
+                  @Override
+                  public int getCount() {
+                      return clones.size();
+                  }
+
+                  @Override
+                  public Object getItem(int position) {
+                      return clones.get(position);
+                  }
+
+                  @Override
+                  public long getItemId(int position) {
+                      return position;
+                  }
+
+                  @Override
+                  public View getView(int position, View convertView, ViewGroup parent) {
+                      TextView text = new TextView(MainActivity.this);
+                      CloneItem clone = clones.get(position);
+                      text.setText(clone.label + "\n" + clone.packageName + "\nTekan untuk buka, tahan untuk hapus");
+                      text.setTextSize(15);
+                      text.setPadding(dp(10), dp(10), dp(10), dp(10));
+                      return text;
+                  }
+              }
+
+              private static class AppItem {
+                  String label;
+                  String packageName;
+
+                  AppItem(String label, String packageName) {
+                      this.label = label;
+                      this.packageName = packageName;
+                  }
+              }
+
+              private static class CloneItem {
+                  String label;
+                  String packageName;
+
+                  CloneItem(String label, String packageName) {
+                      this.label = label;
+                      this.packageName = packageName;
+                  }
+              }
+          }
+          EOF
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Download Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip
+          echo "$PWD/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: Build APK
+        run: |
+          set +e
+          gradle assembleDebug --no-daemon --stacktrace > build-log.txt 2>&1
+          RESULT=$?
+          if [ $RESULT -ne 0 ]; then
+            echo "======= ERROR PENTING ======="
+            grep -n -A 60 -B 20 "What went wrong\|Execution failed\|error:\|FAILED" build-log.txt || true
+            echo "======= LOG TERAKHIR ======="
+            cat build-log.txt | tail -160
+          fi
+          exit $RESULT
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VirtualCloneStarter-apk
+          path: app/build/outputs/apk/debug/*.apk
