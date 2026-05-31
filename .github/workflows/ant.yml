@@ -79,8 +79,8 @@ jobs:
                   applicationId = "com.nakula.anhstore"
                   minSdk = 23
                   targetSdk = 35
-                  versionCode = 3
-                  versionName = "1.2"
+                  versionCode = 5
+                  versionName = "1.4"
               }
           }
           EOF
@@ -153,6 +153,7 @@ jobs:
           package com.nakula.anhstore;
 
           import android.app.Activity;
+          import android.content.ClipData;
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
@@ -160,10 +161,14 @@ jobs:
           import android.graphics.Color;
           import android.graphics.Typeface;
           import android.graphics.drawable.GradientDrawable;
+          import android.os.Build;
           import android.os.Bundle;
+          import android.text.TextUtils;
+          import android.view.DragEvent;
           import android.view.Gravity;
           import android.view.View;
           import android.widget.Button;
+          import android.widget.GridLayout;
           import android.widget.ImageView;
           import android.widget.LinearLayout;
           import android.widget.ScrollView;
@@ -175,9 +180,10 @@ jobs:
           import java.util.Locale;
 
           public class MainActivity extends Activity {
-              private LinearLayout cloneBox;
+              private GridLayout cloneBox;
               private LinearLayout appBox;
               private TextView appTitle;
+              private TextView trashBox;
               private Button toggleAppsButton;
               private SharedPreferences prefs;
               private PackageManager pm;
@@ -219,12 +225,26 @@ jobs:
                   info.setPadding(0, dp(8), 0, 0);
                   header.addView(info);
 
-                  TextView cloneTitle = sectionTitle("Clone Saya");
-                  root.addView(cloneTitle);
+                  root.addView(sectionTitle("Clone Saya"));
 
-                  cloneBox = new LinearLayout(this);
-                  cloneBox.setOrientation(LinearLayout.VERTICAL);
-                  root.addView(cloneBox);
+                  cloneBox = new GridLayout(this);
+                  cloneBox.setColumnCount(4);
+                  cloneBox.setUseDefaultMargins(false);
+                  root.addView(cloneBox, new LinearLayout.LayoutParams(-1, -2));
+
+                  trashBox = new TextView(this);
+                  trashBox.setText("🗑 Geser ke sini untuk hapus");
+                  trashBox.setTextSize(17);
+                  trashBox.setTypeface(Typeface.DEFAULT_BOLD);
+                  trashBox.setTextColor(Color.WHITE);
+                  trashBox.setGravity(Gravity.CENTER);
+                  trashBox.setPadding(dp(12), dp(16), dp(12), dp(16));
+                  trashBox.setBackground(cardBg(0xFFE53935, dp(18)));
+                  trashBox.setVisibility(View.GONE);
+                  trashBox.setOnDragListener((v, event) -> handleTrashDrag(event));
+                  LinearLayout.LayoutParams trashLp = new LinearLayout.LayoutParams(-1, -2);
+                  trashLp.setMargins(0, dp(14), 0, dp(8));
+                  root.addView(trashBox, trashLp);
 
                   LinearLayout actions = new LinearLayout(this);
                   actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -234,15 +254,6 @@ jobs:
                   toggleAppsButton.setText("+ Tambah Aplikasi");
                   toggleAppsButton.setOnClickListener(v -> toggleApps());
                   actions.addView(toggleAppsButton, new LinearLayout.LayoutParams(0, -2, 1));
-
-                  Button clear = new Button(this);
-                  clear.setText("Hapus Clone");
-                  clear.setOnClickListener(v -> {
-                      prefs.edit().clear().apply();
-                      renderClones();
-                      Toast.makeText(this, "Semua clone dihapus", Toast.LENGTH_SHORT).show();
-                  });
-                  actions.addView(clear, new LinearLayout.LayoutParams(0, -2, 1));
 
                   root.addView(actions);
 
@@ -257,6 +268,43 @@ jobs:
 
                   setContentView(scroll);
                   renderClones();
+              }
+
+              private boolean handleTrashDrag(DragEvent event) {
+                  switch (event.getAction()) {
+                      case DragEvent.ACTION_DRAG_STARTED:
+                          trashBox.setVisibility(View.VISIBLE);
+                          trashBox.setText("🗑 Geser ke sini untuk hapus");
+                          trashBox.setBackground(cardBg(0xFFE53935, dp(18)));
+                          return true;
+
+                      case DragEvent.ACTION_DRAG_ENTERED:
+                          trashBox.setText("🗑 Lepas untuk hapus");
+                          trashBox.setBackground(cardBg(0xFFC62828, dp(18)));
+                          return true;
+
+                      case DragEvent.ACTION_DRAG_EXITED:
+                          trashBox.setText("🗑 Geser ke sini untuk hapus");
+                          trashBox.setBackground(cardBg(0xFFE53935, dp(18)));
+                          return true;
+
+                      case DragEvent.ACTION_DROP:
+                          Object state = event.getLocalState();
+                          if (state instanceof Integer) {
+                              int index = (Integer) state;
+                              prefs.edit().remove("clone_" + index).apply();
+                              renderClones();
+                              Toast.makeText(this, "Clone dihapus", Toast.LENGTH_SHORT).show();
+                          }
+                          trashBox.setVisibility(View.GONE);
+                          return true;
+
+                      case DragEvent.ACTION_DRAG_ENDED:
+                          trashBox.setVisibility(View.GONE);
+                          return true;
+                  }
+
+                  return true;
               }
 
               private void toggleApps() {
@@ -389,7 +437,7 @@ jobs:
                       String label = p.length > 0 ? p[0] : "App";
                       String pkg = p.length > 1 ? p[1] : "";
 
-                      cloneBox.addView(cloneRow(i, label, pkg));
+                      cloneBox.addView(cloneCard(i, label, pkg));
                       shown++;
                   }
 
@@ -402,53 +450,52 @@ jobs:
                   }
               }
 
-              private View cloneRow(int index, String label, String pkg) {
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  row.setGravity(Gravity.CENTER_VERTICAL);
-                  row.setPadding(dp(12), dp(10), dp(12), dp(10));
-                  row.setBackground(cardBg(Color.WHITE, dp(16)));
+              private View cloneCard(int index, String label, String pkg) {
+                  LinearLayout card = new LinearLayout(this);
+                  card.setOrientation(LinearLayout.VERTICAL);
+                  card.setGravity(Gravity.CENTER);
+                  card.setPadding(dp(6), dp(8), dp(6), dp(6));
+                  card.setBackground(cardBg(Color.WHITE, dp(14)));
 
                   ImageView icon = appIcon(pkg, null);
-                  row.addView(icon, new LinearLayout.LayoutParams(dp(50), dp(50)));
-
-                  LinearLayout texts = new LinearLayout(this);
-                  texts.setOrientation(LinearLayout.VERTICAL);
-                  texts.setPadding(dp(12), 0, dp(8), 0);
+                  card.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
 
                   TextView name = new TextView(this);
                   name.setText(String.format(Locale.US, "%s %d", label, index));
                   name.setTextColor(0xFF111827);
-                  name.setTextSize(16);
-                  name.setTypeface(Typeface.DEFAULT_BOLD);
+                  name.setTextSize(14);
+                  name.setGravity(Gravity.CENTER);
+                  name.setSingleLine(true);
+                  name.setEllipsize(TextUtils.TruncateAt.END);
+                  name.setPadding(0, dp(5), 0, 0);
+                  card.addView(name, new LinearLayout.LayoutParams(-1, -2));
 
-                  TextView pack = new TextView(this);
-                  pack.setText(pkg);
-                  pack.setTextColor(0xFF64748B);
-                  pack.setTextSize(12);
+                  card.setOnClickListener(v -> openApp(pkg));
 
-                  texts.addView(name);
-                  texts.addView(pack);
-                  row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
+                  card.setOnLongClickListener(v -> {
+                      trashBox.setVisibility(View.VISIBLE);
+                      ClipData data = ClipData.newPlainText("clone", String.valueOf(index));
+                      View.DragShadowBuilder shadow = new View.DragShadowBuilder(card);
 
-                  Button open = new Button(this);
-                  open.setText("Buka");
-                  open.setOnClickListener(v -> openApp(pkg));
-                  row.addView(open);
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                          card.startDragAndDrop(data, shadow, Integer.valueOf(index), 0);
+                      } else {
+                          card.startDrag(data, shadow, Integer.valueOf(index), 0);
+                      }
 
-                  Button del = new Button(this);
-                  del.setText("Hapus");
-                  del.setOnClickListener(v -> {
-                      prefs.edit().remove("clone_" + index).apply();
-                      renderClones();
+                      return true;
                   });
-                  row.addView(del);
 
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-                  lp.setMargins(0, 0, 0, dp(10));
-                  row.setLayoutParams(lp);
+                  int screen = getResources().getDisplayMetrics().widthPixels;
+                  int itemWidth = (screen - dp(36) - dp(32)) / 4;
 
-                  return row;
+                  GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
+                  lp.width = itemWidth;
+                  lp.height = dp(105);
+                  lp.setMargins(dp(4), dp(4), dp(4), dp(8));
+                  card.setLayoutParams(lp);
+
+                  return card;
               }
 
               private ImageView appIcon(String pkg, ResolveInfo ri) {
