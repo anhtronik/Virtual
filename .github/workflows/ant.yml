@@ -12,11 +12,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Buat project Android stabil
+      - name: Buat app Dual Clone Space
         run: |
           rm -rf app build.gradle.kts settings.gradle.kts gradle.properties
 
-          mkdir -p app/src/main/java/com/digitalizha/virtualclone
+          mkdir -p app/src/main/java/com/digitalizha/dualclone
           mkdir -p app/src/main/res/values
 
           cat > settings.gradle.kts <<'EOF'
@@ -36,7 +36,7 @@ jobs:
               }
           }
 
-          rootProject.name = "VirtualCloneStarter"
+          rootProject.name = "DualCloneSpace"
           include(":app")
           EOF
 
@@ -58,15 +58,15 @@ jobs:
           }
 
           android {
-              namespace = "com.digitalizha.virtualclone"
+              namespace = "com.digitalizha.dualclone"
               compileSdk = 35
 
               defaultConfig {
-                  applicationId = "com.digitalizha.virtualclone"
+                  applicationId = "com.digitalizha.dualclone"
                   minSdk = 23
                   targetSdk = 35
-                  versionCode = 1
-                  versionName = "1.0"
+                  versionCode = 3
+                  versionName = "1.2"
               }
 
               compileOptions {
@@ -78,7 +78,7 @@ jobs:
 
           cat > app/src/main/res/values/strings.xml <<'EOF'
           <resources>
-              <string name="app_name">Virtual Clone Starter</string>
+              <string name="app_name">Dual Clone Space</string>
           </resources>
           EOF
 
@@ -87,7 +87,8 @@ jobs:
               <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
                   <item name="android:fontFamily">sans</item>
                   <item name="android:windowLightStatusBar">true</item>
-                  <item name="android:colorAccent">#2196F3</item>
+                  <item name="android:navigationBarColor">#F4F7FF</item>
+                  <item name="android:colorAccent">#247CFF</item>
               </style>
           </resources>
           EOF
@@ -110,7 +111,8 @@ jobs:
 
                   <activity
                       android:name=".MainActivity"
-                      android:exported="true">
+                      android:exported="true"
+                      android:screenOrientation="portrait">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -121,8 +123,8 @@ jobs:
           </manifest>
           EOF
 
-          cat > app/src/main/java/com/digitalizha/virtualclone/MainActivity.java <<'EOF'
-          package com.digitalizha.virtualclone;
+          cat > app/src/main/java/com/digitalizha/dualclone/MainActivity.java <<'EOF'
+          package com.digitalizha.dualclone;
 
           import android.app.Activity;
           import android.os.Bundle;
@@ -130,16 +132,24 @@ jobs:
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
           import android.content.pm.ResolveInfo;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.Drawable;
+          import android.graphics.drawable.GradientDrawable;
+          import android.view.Gravity;
           import android.view.View;
           import android.view.ViewGroup;
           import android.widget.AdapterView;
           import android.widget.BaseAdapter;
-          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.FrameLayout;
+          import android.widget.GridView;
+          import android.widget.ImageView;
           import android.widget.LinearLayout;
-          import android.widget.ListView;
           import android.widget.TextView;
           import android.widget.Toast;
-          import android.graphics.Typeface;
+          import android.text.Editable;
+          import android.text.TextWatcher;
 
           import java.util.ArrayList;
           import java.util.Collections;
@@ -147,99 +157,153 @@ jobs:
           import java.util.List;
 
           public class MainActivity extends Activity {
-              private ArrayList<AppItem> apps = new ArrayList<AppItem>();
+              private ArrayList<AppItem> allApps = new ArrayList<AppItem>();
+              private ArrayList<AppItem> shownApps = new ArrayList<AppItem>();
               private ArrayList<CloneItem> clones = new ArrayList<CloneItem>();
+
               private AppAdapter appAdapter;
               private CloneAdapter cloneAdapter;
               private SharedPreferences prefs;
+              private TextView cloneCount;
+              private TextView appCount;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
 
-                  prefs = getSharedPreferences("clone_data", MODE_PRIVATE);
+                  prefs = getSharedPreferences("data_clone", MODE_PRIVATE);
+
+                  FrameLayout frame = new FrameLayout(this);
+                  frame.setBackgroundColor(Color.parseColor("#F4F7FF"));
 
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
                   root.setPadding(dp(14), dp(14), dp(14), dp(14));
+                  frame.addView(root);
+
+                  LinearLayout header = new LinearLayout(this);
+                  header.setOrientation(LinearLayout.VERTICAL);
+                  header.setPadding(dp(18), dp(18), dp(18), dp(18));
+                  header.setBackground(gradient("#247CFF", "#7357FF", 28));
+                  root.addView(header);
 
                   TextView title = new TextView(this);
-                  title.setText("Virtual Clone Starter");
-                  title.setTextSize(24);
+                  title.setText("Dual Clone Space");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(27);
                   title.setTypeface(Typeface.DEFAULT_BOLD);
-                  root.addView(title);
+                  header.addView(title);
 
-                  TextView info = new TextView(this);
-                  info.setText("Pondasi awal aplikasi clone. Pilih app untuk membuat slot clone. Tekan clone untuk membuka aplikasi asli.");
-                  info.setTextSize(14);
-                  info.setPadding(0, dp(6), 0, dp(10));
-                  root.addView(info);
+                  TextView subtitle = new TextView(this);
+                  subtitle.setText("Clone aplikasi seperti Dual Space");
+                  subtitle.setTextColor(Color.parseColor("#EAF1FF"));
+                  subtitle.setTextSize(14);
+                  subtitle.setPadding(0, dp(5), 0, dp(14));
+                  header.addView(subtitle);
 
-                  Button refresh = new Button(this);
-                  refresh.setText("Refresh Daftar Aplikasi");
-                  root.addView(refresh);
+                  LinearLayout stats = new LinearLayout(this);
+                  stats.setOrientation(LinearLayout.HORIZONTAL);
+                  header.addView(stats);
 
-                  TextView cloneTitle = new TextView(this);
-                  cloneTitle.setText("Daftar Clone");
-                  cloneTitle.setTextSize(18);
-                  cloneTitle.setTypeface(Typeface.DEFAULT_BOLD);
-                  cloneTitle.setPadding(0, dp(12), 0, dp(6));
-                  root.addView(cloneTitle);
+                  cloneCount = statBox("0 Clone");
+                  appCount = statBox("0 App");
 
-                  ListView cloneList = new ListView(this);
-                  root.addView(cloneList, new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT, dp(220)));
+                  stats.addView(cloneCount, new LinearLayout.LayoutParams(0, dp(54), 1));
+                  TextView space = new TextView(this);
+                  stats.addView(space, new LinearLayout.LayoutParams(dp(10), 1));
+                  stats.addView(appCount, new LinearLayout.LayoutParams(0, dp(54), 1));
 
-                  TextView appTitle = new TextView(this);
-                  appTitle.setText("Aplikasi Terpasang");
-                  appTitle.setTextSize(18);
-                  appTitle.setTypeface(Typeface.DEFAULT_BOLD);
-                  appTitle.setPadding(0, dp(12), 0, dp(6));
-                  root.addView(appTitle);
+                  EditText search = new EditText(this);
+                  search.setHint("Cari aplikasi...");
+                  search.setTextSize(15);
+                  search.setSingleLine(true);
+                  search.setPadding(dp(16), 0, dp(16), 0);
+                  search.setBackground(box("#FFFFFF", 22, "#DDE6FF"));
+                  LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+                  searchLp.setMargins(0, dp(14), 0, dp(10));
+                  root.addView(search, searchLp);
 
-                  ListView appList = new ListView(this);
-                  root.addView(appList, new LinearLayout.LayoutParams(
+                  root.addView(section("Clone Saya"));
+
+                  GridView cloneGrid = new GridView(this);
+                  cloneGrid.setNumColumns(4);
+                  cloneGrid.setHorizontalSpacing(dp(8));
+                  cloneGrid.setVerticalSpacing(dp(8));
+                  cloneGrid.setPadding(0, dp(4), 0, dp(4));
+                  root.addView(cloneGrid, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, dp(175)));
+
+                  root.addView(section("Tambah Aplikasi"));
+
+                  GridView appGrid = new GridView(this);
+                  appGrid.setNumColumns(4);
+                  appGrid.setHorizontalSpacing(dp(8));
+                  appGrid.setVerticalSpacing(dp(12));
+                  appGrid.setPadding(0, dp(6), 0, dp(90));
+                  root.addView(appGrid, new LinearLayout.LayoutParams(
                           ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
 
-                  setContentView(root);
+                  TextView plus = new TextView(this);
+                  plus.setText("+");
+                  plus.setTextColor(Color.WHITE);
+                  plus.setTextSize(38);
+                  plus.setGravity(Gravity.CENTER);
+                  plus.setTypeface(Typeface.DEFAULT_BOLD);
+                  plus.setBackground(box("#247CFF", 50, null));
+
+                  FrameLayout.LayoutParams plusLp = new FrameLayout.LayoutParams(dp(72), dp(72));
+                  plusLp.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+                  plusLp.setMargins(0, 0, dp(22), dp(24));
+                  frame.addView(plus, plusLp);
+
+                  setContentView(frame);
 
                   appAdapter = new AppAdapter();
                   cloneAdapter = new CloneAdapter();
-                  appList.setAdapter(appAdapter);
-                  cloneList.setAdapter(cloneAdapter);
 
-                  refresh.setOnClickListener(new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          loadApps();
-                      }
-                  });
+                  appGrid.setAdapter(appAdapter);
+                  cloneGrid.setAdapter(cloneAdapter);
 
-                  appList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                  appGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                       @Override
                       public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                          AppItem app = apps.get(position);
-                          addClone(app);
+                          addClone(shownApps.get(position));
                       }
                   });
 
-                  cloneList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                  cloneGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                       @Override
                       public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                          CloneItem clone = clones.get(position);
-                          launchOriginalApp(clone.packageName);
+                          openApp(clones.get(position).packageName);
                       }
                   });
 
-                  cloneList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+                  cloneGrid.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
                       @Override
                       public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
                           clones.remove(position);
                           saveClones();
                           cloneAdapter.notifyDataSetChanged();
+                          updateCount();
                           Toast.makeText(MainActivity.this, "Clone dihapus", Toast.LENGTH_SHORT).show();
                           return true;
                       }
+                  });
+
+                  plus.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          Toast.makeText(MainActivity.this, "Pilih aplikasi di daftar bawah", Toast.LENGTH_SHORT).show();
+                      }
+                  });
+
+                  search.addTextChangedListener(new TextWatcher() {
+                      @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                      @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                          filter(s.toString());
+                      }
+                      @Override public void afterTextChanged(Editable s) {}
                   });
 
                   loadClones();
@@ -247,7 +311,8 @@ jobs:
               }
 
               private void loadApps() {
-                  apps.clear();
+                  allApps.clear();
+                  shownApps.clear();
 
                   PackageManager pm = getPackageManager();
                   Intent intent = new Intent(Intent.ACTION_MAIN);
@@ -259,47 +324,61 @@ jobs:
                       ResolveInfo info = list.get(i);
                       String label = info.loadLabel(pm).toString();
                       String pkg = info.activityInfo.packageName;
+                      Drawable icon = info.loadIcon(pm);
 
                       if (!pkg.equals(getPackageName())) {
-                          apps.add(new AppItem(label, pkg));
+                          allApps.add(new AppItem(label, pkg, icon));
                       }
                   }
 
-                  Collections.sort(apps, new Comparator<AppItem>() {
+                  Collections.sort(allApps, new Comparator<AppItem>() {
                       @Override
                       public int compare(AppItem a, AppItem b) {
                           return a.label.compareToIgnoreCase(b.label);
                       }
                   });
 
+                  shownApps.addAll(allApps);
                   appAdapter.notifyDataSetChanged();
-                  Toast.makeText(this, "Aplikasi ditemukan: " + apps.size(), Toast.LENGTH_SHORT).show();
+                  updateCount();
               }
 
-              private void addClone(AppItem app) {
-                  int number = 1;
+              private void filter(String q) {
+                  shownApps.clear();
+                  String x = q.toLowerCase();
 
-                  for (int i = 0; i < clones.size(); i++) {
-                      CloneItem item = clones.get(i);
-                      if (item.packageName.equals(app.packageName)) {
-                          number++;
+                  for (int i = 0; i < allApps.size(); i++) {
+                      AppItem item = allApps.get(i);
+                      if (item.label.toLowerCase().contains(x) || item.packageName.toLowerCase().contains(x)) {
+                          shownApps.add(item);
                       }
                   }
 
-                  CloneItem clone = new CloneItem(app.label + " Clone #" + number, app.packageName);
-                  clones.add(clone);
-
-                  saveClones();
-                  cloneAdapter.notifyDataSetChanged();
-
-                  Toast.makeText(this, "Clone dibuat: " + clone.label, Toast.LENGTH_SHORT).show();
+                  appAdapter.notifyDataSetChanged();
               }
 
-              private void launchOriginalApp(String packageName) {
-                  Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+              private void addClone(AppItem app) {
+                  int nomor = 1;
 
-                  if (launchIntent != null) {
-                      startActivity(launchIntent);
+                  for (int i = 0; i < clones.size(); i++) {
+                      if (clones.get(i).packageName.equals(app.packageName)) {
+                          nomor++;
+                      }
+                  }
+
+                  clones.add(new CloneItem(app.label + " " + nomor, app.packageName));
+                  saveClones();
+                  cloneAdapter.notifyDataSetChanged();
+                  updateCount();
+
+                  Toast.makeText(this, "Clone dibuat: " + app.label, Toast.LENGTH_SHORT).show();
+              }
+
+              private void openApp(String packageName) {
+                  Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
+
+                  if (launch != null) {
+                      startActivity(launch);
                   } else {
                       Toast.makeText(this, "Aplikasi tidak bisa dibuka", Toast.LENGTH_SHORT).show();
                   }
@@ -309,99 +388,160 @@ jobs:
                   clones.clear();
 
                   String data = prefs.getString("clones", "");
-                  if (data == null || data.length() == 0) {
-                      return;
-                  }
+                  if (data == null || data.length() == 0) return;
 
                   String[] lines = data.split("\\n");
 
                   for (int i = 0; i < lines.length; i++) {
-                      String line = lines[i];
-                      String[] parts = line.split("\\|", 2);
-
-                      if (parts.length == 2) {
-                          clones.add(new CloneItem(parts[0], parts[1]));
+                      String[] p = lines[i].split("\\|", 2);
+                      if (p.length == 2) {
+                          clones.add(new CloneItem(p[0], p[1]));
                       }
                   }
               }
 
               private void saveClones() {
-                  StringBuilder builder = new StringBuilder();
+                  StringBuilder sb = new StringBuilder();
 
                   for (int i = 0; i < clones.size(); i++) {
-                      CloneItem item = clones.get(i);
-                      String label = item.label.replace("|", " ");
-                      builder.append(label).append("|").append(item.packageName).append("\n");
+                      CloneItem c = clones.get(i);
+                      sb.append(c.label.replace("|", " "))
+                        .append("|")
+                        .append(c.packageName)
+                        .append("\n");
                   }
 
-                  prefs.edit().putString("clones", builder.toString()).apply();
+                  prefs.edit().putString("clones", sb.toString()).apply();
               }
 
-              private int dp(int value) {
-                  return (int) (value * getResources().getDisplayMetrics().density);
+              private void updateCount() {
+                  cloneCount.setText(clones.size() + " Clone");
+                  appCount.setText(allApps.size() + " App");
+              }
+
+              private TextView section(String s) {
+                  TextView tv = new TextView(this);
+                  tv.setText(s);
+                  tv.setTextColor(Color.parseColor("#1A1D29"));
+                  tv.setTextSize(18);
+                  tv.setTypeface(Typeface.DEFAULT_BOLD);
+                  tv.setPadding(0, dp(10), 0, dp(6));
+                  return tv;
+              }
+
+              private TextView statBox(String s) {
+                  TextView tv = new TextView(this);
+                  tv.setText(s);
+                  tv.setTextColor(Color.WHITE);
+                  tv.setTextSize(16);
+                  tv.setTypeface(Typeface.DEFAULT_BOLD);
+                  tv.setGravity(Gravity.CENTER);
+                  tv.setBackground(box("#33FFFFFF", 18, "#66FFFFFF"));
+                  return tv;
+              }
+
+              private GradientDrawable gradient(String a, String b, int r) {
+                  GradientDrawable gd = new GradientDrawable(
+                          GradientDrawable.Orientation.LEFT_RIGHT,
+                          new int[]{Color.parseColor(a), Color.parseColor(b)}
+                  );
+                  gd.setCornerRadius(dp(r));
+                  return gd;
+              }
+
+              private GradientDrawable box(String color, int radius, String stroke) {
+                  GradientDrawable gd = new GradientDrawable();
+                  gd.setColor(Color.parseColor(color));
+                  gd.setCornerRadius(dp(radius));
+                  if (stroke != null) gd.setStroke(dp(1), Color.parseColor(stroke));
+                  return gd;
+              }
+
+              private int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density);
               }
 
               private class AppAdapter extends BaseAdapter {
-                  @Override
-                  public int getCount() {
-                      return apps.size();
-                  }
+                  @Override public int getCount() { return shownApps.size(); }
+                  @Override public Object getItem(int p) { return shownApps.get(p); }
+                  @Override public long getItemId(int p) { return p; }
 
                   @Override
-                  public Object getItem(int position) {
-                      return apps.get(position);
-                  }
+                  public View getView(int p, View convertView, ViewGroup parent) {
+                      AppItem app = shownApps.get(p);
 
-                  @Override
-                  public long getItemId(int position) {
-                      return position;
-                  }
+                      LinearLayout box = new LinearLayout(MainActivity.this);
+                      box.setOrientation(LinearLayout.VERTICAL);
+                      box.setGravity(Gravity.CENTER);
+                      box.setPadding(dp(4), dp(8), dp(4), dp(8));
 
-                  @Override
-                  public View getView(int position, View convertView, ViewGroup parent) {
-                      TextView text = new TextView(MainActivity.this);
-                      AppItem app = apps.get(position);
-                      text.setText(app.label + "\n" + app.packageName + "\nTekan untuk buat clone slot");
-                      text.setTextSize(15);
-                      text.setPadding(dp(10), dp(10), dp(10), dp(10));
-                      return text;
+                      ImageView icon = new ImageView(MainActivity.this);
+                      icon.setImageDrawable(app.icon);
+                      box.addView(icon, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+                      TextView name = new TextView(MainActivity.this);
+                      name.setText(app.label);
+                      name.setTextSize(12);
+                      name.setTextColor(Color.parseColor("#2A2D36"));
+                      name.setGravity(Gravity.CENTER);
+                      name.setMaxLines(2);
+                      name.setPadding(0, dp(6), 0, 0);
+                      box.addView(name);
+
+                      TextView add = new TextView(MainActivity.this);
+                      add.setText("+ Clone");
+                      add.setTextSize(10);
+                      add.setTextColor(Color.parseColor("#247CFF"));
+                      add.setGravity(Gravity.CENTER);
+                      box.addView(add);
+
+                      return box;
                   }
               }
 
               private class CloneAdapter extends BaseAdapter {
-                  @Override
-                  public int getCount() {
-                      return clones.size();
-                  }
+                  @Override public int getCount() { return clones.size(); }
+                  @Override public Object getItem(int p) { return clones.get(p); }
+                  @Override public long getItemId(int p) { return p; }
 
                   @Override
-                  public Object getItem(int position) {
-                      return clones.get(position);
-                  }
+                  public View getView(int p, View convertView, ViewGroup parent) {
+                      CloneItem clone = clones.get(p);
 
-                  @Override
-                  public long getItemId(int position) {
-                      return position;
-                  }
+                      LinearLayout box = new LinearLayout(MainActivity.this);
+                      box.setOrientation(LinearLayout.VERTICAL);
+                      box.setGravity(Gravity.CENTER);
+                      box.setPadding(dp(4), dp(8), dp(4), dp(8));
+                      box.setBackground(box("#FFFFFF", 18, "#E3EAFF"));
 
-                  @Override
-                  public View getView(int position, View convertView, ViewGroup parent) {
-                      TextView text = new TextView(MainActivity.this);
-                      CloneItem clone = clones.get(position);
-                      text.setText(clone.label + "\n" + clone.packageName + "\nTekan untuk buka, tahan untuk hapus");
-                      text.setTextSize(15);
-                      text.setPadding(dp(10), dp(10), dp(10), dp(10));
-                      return text;
+                      ImageView icon = new ImageView(MainActivity.this);
+                      try {
+                          icon.setImageDrawable(getPackageManager().getApplicationIcon(clone.packageName));
+                      } catch (Exception e) {}
+                      box.addView(icon, new LinearLayout.LayoutParams(dp(50), dp(50)));
+
+                      TextView name = new TextView(MainActivity.this);
+                      name.setText(clone.label);
+                      name.setTextSize(11);
+                      name.setTextColor(Color.parseColor("#1A1D29"));
+                      name.setGravity(Gravity.CENTER);
+                      name.setMaxLines(2);
+                      name.setPadding(0, dp(6), 0, 0);
+                      box.addView(name);
+
+                      return box;
                   }
               }
 
               private static class AppItem {
                   String label;
                   String packageName;
+                  Drawable icon;
 
-                  AppItem(String label, String packageName) {
+                  AppItem(String label, String packageName, Drawable icon) {
                       this.label = label;
                       this.packageName = packageName;
+                      this.icon = icon;
                   }
               }
 
@@ -438,20 +578,10 @@ jobs:
           echo "$PWD/gradle-8.7/bin" >> "$GITHUB_PATH"
 
       - name: Build APK
-        run: |
-          set +e
-          gradle assembleDebug --no-daemon --stacktrace > build-log.txt 2>&1
-          RESULT=$?
-          if [ $RESULT -ne 0 ]; then
-            echo "======= ERROR PENTING ======="
-            grep -n -A 60 -B 20 "What went wrong\|Execution failed\|error:\|FAILED" build-log.txt || true
-            echo "======= LOG TERAKHIR ======="
-            cat build-log.txt | tail -160
-          fi
-          exit $RESULT
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualCloneStarter-apk
+          name: DualCloneSpace-apk
           path: app/build/outputs/apk/debug/*.apk
