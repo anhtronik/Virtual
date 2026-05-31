@@ -1,4 +1,4 @@
-name: Build APK
+name: Build ANH store APK
 
 on:
   workflow_dispatch:
@@ -12,12 +12,26 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Buat app Dual Clone Space
-        run: |
-          rm -rf app build.gradle.kts settings.gradle.kts gradle.properties
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-          mkdir -p app/src/main/java/com/digitalizha/dualclone
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Buat project Android ANH store
+        run: |
+          rm -rf app settings.gradle.kts build.gradle.kts gradle.properties
+          mkdir -p app/src/main/java/com/nakula/anhstore
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
 
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
@@ -35,6 +49,451 @@ jobs:
                   mavenCentral()
               }
           }
+
+          rootProject.name = "ANHStore"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.6.1" apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=false
+          android.nonTransitiveRClass=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+          }
+
+          android {
+              namespace = "com.nakula.anhstore"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.nakula.anhstore"
+                  minSdk = 23
+                  targetSdk = 35
+                  versionCode = 2
+                  versionName = "1.1"
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">ANH store</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowLightStatusBar">true</item>
+                  <item name="android:colorAccent">#2196F3</item>
+                  <item name="android:windowBackground">#F3F6FF</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#1677FF"
+                  android:pathData="M8,8 H100 V100 H8 Z"/>
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M54,20 L84,88 H68 L62,74 H46 L40,88 H24 Z M50,62 H58 L54,48 Z"/>
+              <path
+                  android:fillColor="#00C2A8"
+                  android:pathData="M76,18 H96 L84,42 H98 L62,90 L72,58 H58 Z"/>
+          </vector>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent>
+              </queries>
+
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="@string/app_name"
+                  android:icon="@drawable/ic_launcher"
+                  android:roundIcon="@drawable/ic_launcher"
+                  android:allowBackup="true"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name="com.nakula.anhstore.MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/nakula/anhstore/MainActivity.java <<'EOF'
+          package com.nakula.anhstore;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.util.Collections;
+          import java.util.List;
+          import java.util.Locale;
+
+          public class MainActivity extends Activity {
+              private LinearLayout cloneBox;
+              private LinearLayout appBox;
+              private TextView appTitle;
+              private Button toggleAppsButton;
+              private SharedPreferences prefs;
+              private PackageManager pm;
+              private boolean appsVisible = false;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  prefs = getSharedPreferences("clone_slots", MODE_PRIVATE);
+                  pm = getPackageManager();
+
+                  ScrollView scroll = new ScrollView(this);
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(18), dp(22), dp(18), dp(22));
+                  scroll.addView(root);
+
+                  LinearLayout header = new LinearLayout(this);
+                  header.setOrientation(LinearLayout.VERTICAL);
+                  header.setPadding(dp(18), dp(18), dp(18), dp(18));
+                  header.setBackground(cardBg(0xFF1E88FF, dp(24)));
+                  root.addView(header, new LinearLayout.LayoutParams(-1, -2));
+
+                  TextView title = new TextView(this);
+                  title.setText("ANH store");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(28);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  header.addView(title);
+
+                  TextView info = new TextView(this);
+                  info.setText("Clone aplikasi seperti Dual Space");
+                  info.setTextColor(0xEEFFFFFF);
+                  info.setTextSize(16);
+                  info.setPadding(0, dp(8), 0, 0);
+                  header.addView(info);
+
+                  TextView cloneTitle = sectionTitle("Clone Saya");
+                  root.addView(cloneTitle);
+
+                  cloneBox = new LinearLayout(this);
+                  cloneBox.setOrientation(LinearLayout.VERTICAL);
+                  root.addView(cloneBox);
+
+                  LinearLayout actions = new LinearLayout(this);
+                  actions.setOrientation(LinearLayout.HORIZONTAL);
+                  actions.setPadding(0, dp(12), 0, dp(8));
+
+                  toggleAppsButton = new Button(this);
+                  toggleAppsButton.setText("+ Tambah Aplikasi");
+                  toggleAppsButton.setOnClickListener(v -> toggleApps());
+                  actions.addView(toggleAppsButton, new LinearLayout.LayoutParams(0, -2, 1));
+
+                  Button clear = new Button(this);
+                  clear.setText("Hapus Clone");
+                  clear.setOnClickListener(v -> {
+                      prefs.edit().clear().apply();
+                      renderClones();
+                      Toast.makeText(this, "Semua clone dihapus", Toast.LENGTH_SHORT).show();
+                  });
+                  actions.addView(clear, new LinearLayout.LayoutParams(0, -2, 1));
+
+                  root.addView(actions);
+
+                  appTitle = sectionTitle("Tambah Aplikasi");
+                  appTitle.setVisibility(View.GONE);
+                  root.addView(appTitle);
+
+                  appBox = new LinearLayout(this);
+                  appBox.setOrientation(LinearLayout.VERTICAL);
+                  appBox.setVisibility(View.GONE);
+                  root.addView(appBox);
+
+                  setContentView(scroll);
+                  renderClones();
+              }
+
+              private void toggleApps() {
+                  appsVisible = !appsVisible;
+                  appTitle.setVisibility(appsVisible ? View.VISIBLE : View.GONE);
+                  appBox.setVisibility(appsVisible ? View.VISIBLE : View.GONE);
+                  toggleAppsButton.setText(appsVisible ? "Tutup Tambah Aplikasi" : "+ Tambah Aplikasi");
+
+                  if (appsVisible && appBox.getChildCount() == 0) {
+                      loadApps();
+                  }
+              }
+
+              private TextView sectionTitle(String s) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextSize(22);
+                  t.setTypeface(Typeface.DEFAULT_BOLD);
+                  t.setTextColor(0xFF0F172A);
+                  t.setPadding(0, dp(18), 0, dp(10));
+                  return t;
+              }
+
+              private void loadApps() {
+                  appBox.removeAllViews();
+
+                  Intent main = new Intent(Intent.ACTION_MAIN, null);
+                  main.addCategory(Intent.CATEGORY_LAUNCHER);
+
+                  List<ResolveInfo> apps = pm.queryIntentActivities(main, 0);
+                  Collections.sort(apps, new ResolveInfo.DisplayNameComparator(pm));
+
+                  int shown = 0;
+
+                  for (ResolveInfo ri : apps) {
+                      String pkg = ri.activityInfo.packageName;
+
+                      if (pkg.equals(getPackageName())) {
+                          continue;
+                      }
+
+                      String label = ri.loadLabel(pm).toString();
+                      appBox.addView(appRow(label, pkg, ri));
+                      shown++;
+                  }
+
+                  if (shown == 0) {
+                      TextView empty = new TextView(this);
+                      empty.setText("Aplikasi tidak ditemukan.");
+                      empty.setPadding(0, dp(6), 0, dp(6));
+                      appBox.addView(empty);
+                  }
+              }
+
+              private View appRow(String label, String pkg, ResolveInfo ri) {
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setPadding(dp(12), dp(10), dp(12), dp(10));
+                  row.setBackground(cardBg(Color.WHITE, dp(16)));
+
+                  ImageView icon = appIcon(pkg, ri);
+                  row.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+                  LinearLayout texts = new LinearLayout(this);
+                  texts.setOrientation(LinearLayout.VERTICAL);
+                  texts.setPadding(dp(12), 0, dp(8), 0);
+
+                  TextView name = new TextView(this);
+                  name.setText(label);
+                  name.setTextColor(0xFF111827);
+                  name.setTextSize(16);
+                  name.setTypeface(Typeface.DEFAULT_BOLD);
+
+                  TextView pack = new TextView(this);
+                  pack.setText(pkg);
+                  pack.setTextColor(0xFF64748B);
+                  pack.setTextSize(12);
+
+                  texts.addView(name);
+                  texts.addView(pack);
+                  row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
+
+                  Button add = new Button(this);
+                  add.setText("+ Clone");
+                  add.setOnClickListener(v -> addClone(label, pkg));
+                  row.addView(add);
+
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(0, 0, 0, dp(10));
+                  row.setLayoutParams(lp);
+
+                  return row;
+              }
+
+              private void addClone(String label, String pkg) {
+                  int count = prefs.getInt("count", 0) + 1;
+
+                  prefs.edit()
+                          .putInt("count", count)
+                          .putString("clone_" + count, label + "||" + pkg)
+                          .apply();
+
+                  renderClones();
+
+                  appsVisible = false;
+                  appTitle.setVisibility(View.GONE);
+                  appBox.setVisibility(View.GONE);
+                  toggleAppsButton.setText("+ Tambah Aplikasi");
+
+                  Toast.makeText(this, "Clone dibuat: " + label + " " + count, Toast.LENGTH_SHORT).show();
+              }
+
+              private void renderClones() {
+                  cloneBox.removeAllViews();
+
+                  int count = prefs.getInt("count", 0);
+                  int shown = 0;
+
+                  for (int i = 1; i <= count; i++) {
+                      String data = prefs.getString("clone_" + i, null);
+
+                      if (data == null) {
+                          continue;
+                      }
+
+                      String[] p = data.split("\\|\\|", 2);
+                      String label = p.length > 0 ? p[0] : "App";
+                      String pkg = p.length > 1 ? p[1] : "";
+
+                      cloneBox.addView(cloneRow(i, label, pkg));
+                      shown++;
+                  }
+
+                  if (shown == 0) {
+                      TextView empty = new TextView(this);
+                      empty.setText("Belum ada clone. Tekan tombol + Tambah Aplikasi.");
+                      empty.setTextColor(0xFF64748B);
+                      empty.setPadding(0, dp(4), 0, dp(4));
+                      cloneBox.addView(empty);
+                  }
+              }
+
+              private View cloneRow(int index, String label, String pkg) {
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setPadding(dp(12), dp(10), dp(12), dp(10));
+                  row.setBackground(cardBg(Color.WHITE, dp(16)));
+
+                  ImageView icon = appIcon(pkg, null);
+                  row.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+                  LinearLayout texts = new LinearLayout(this);
+                  texts.setOrientation(LinearLayout.VERTICAL);
+                  texts.setPadding(dp(12), 0, dp(8), 0);
+
+                  TextView name = new TextView(this);
+                  name.setText(String.format(Locale.US, "%s %d", label, index));
+                  name.setTextColor(0xFF111827);
+                  name.setTextSize(16);
+                  name.setTypeface(Typeface.DEFAULT_BOLD);
+
+                  TextView pack = new TextView(this);
+                  pack.setText(pkg);
+                  pack.setTextColor(0xFF64748B);
+                  pack.setTextSize(12);
+
+                  texts.addView(name);
+                  texts.addView(pack);
+                  row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
+
+                  Button open = new Button(this);
+                  open.setText("Buka");
+                  open.setOnClickListener(v -> openApp(pkg));
+                  row.addView(open);
+
+                  Button del = new Button(this);
+                  del.setText("Hapus");
+                  del.setOnClickListener(v -> {
+                      prefs.edit().remove("clone_" + index).apply();
+                      renderClones();
+                  });
+                  row.addView(del);
+
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(0, 0, 0, dp(10));
+                  row.setLayoutParams(lp);
+
+                  return row;
+              }
+
+              private ImageView appIcon(String pkg, ResolveInfo ri) {
+                  ImageView icon = new ImageView(this);
+
+                  try {
+                      if (ri != null) {
+                          icon.setImageDrawable(ri.loadIcon(pm));
+                      } else {
+                          icon.setImageDrawable(pm.getApplicationIcon(pkg));
+                      }
+                  } catch (Exception e) {
+                      icon.setImageResource(android.R.drawable.sym_def_app_icon);
+                  }
+
+                  icon.setPadding(dp(2), dp(2), dp(2), dp(2));
+
+                  return icon;
+              }
+
+              private void openApp(String pkg) {
+                  Intent launch = pm.getLaunchIntentForPackage(pkg);
+
+                  if (launch == null) {
+                      Toast.makeText(this, "App tidak bisa dibuka", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+
+                  startActivity(launch);
+              }
+
+              private GradientDrawable cardBg(int color, int radius) {
+                  GradientDrawable bg = new GradientDrawable();
+                  bg.setColor(color);
+                  bg.setCornerRadius(radius);
+                  return bg;
+              }
+
+              private int dp(int value) {
+                  return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANH-store-apk
+          path: app/build/outputs/apk/debug/*.apk          }
 
           rootProject.name = "DualCloneSpace"
           include(":app")
