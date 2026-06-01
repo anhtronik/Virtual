@@ -1,4 +1,4 @@
-name: Build ANH store APK
+name: Build ANH store APK Multi Akun
 
 on:
   workflow_dispatch:
@@ -26,7 +26,7 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
-      - name: Buat project Android ANH store
+      - name: Buat project Android ANH store Multi Akun
         run: |
           rm -rf app settings.gradle.kts build.gradle.kts gradle.properties
           mkdir -p app/src/main/java/com/nakula/anhstore
@@ -79,8 +79,8 @@ jobs:
                   applicationId = "com.nakula.anhstore"
                   minSdk = 23
                   targetSdk = 35
-                  versionCode = 7
-                  versionName = "1.6"
+                  versionCode = 8
+                  versionName = "1.7-multi-akun"
               }
           }
           EOF
@@ -136,6 +136,10 @@ jobs:
                   android:roundIcon="@drawable/ic_launcher"
                   android:allowBackup="true"
                   android:usesCleartextTraffic="true">
+
+                  <activity
+                      android:name=".CloneActivity"
+                      android:exported="false" />
 
                   <activity
                       android:name=".MainActivity"
@@ -220,16 +224,16 @@ jobs:
                   root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
                   TextView title = new TextView(this);
-                  title.setText("ANH store");
+                  title.setText("ANH store Multi Akun");
                   title.setTextColor(Color.WHITE);
-                  title.setTextSize(30);
+                  title.setTextSize(28);
                   title.setTypeface(Typeface.DEFAULT_BOLD);
                   header.addView(title);
 
                   TextView info = new TextView(this);
-                  info.setText("Clone aplikasi seperti Dual Space");
+                  info.setText("Setiap clone punya nomor/login sendiri. Contoh: Clone 1 = 2378, Clone 2 = 0879, Clone 3 = 0859.");
                   info.setTextColor(0xEEFFFFFF);
-                  info.setTextSize(16);
+                  info.setTextSize(15);
                   info.setPadding(0, dp(8), 0, 0);
                   header.addView(info);
 
@@ -245,13 +249,13 @@ jobs:
                   actions.setPadding(0, dp(12), 0, dp(8));
 
                   toggleAppsButton = new Button(this);
-                  toggleAppsButton.setText("+ Tambah Aplikasi");
+                  toggleAppsButton.setText("+ Tambah Clone");
                   toggleAppsButton.setOnClickListener(v -> toggleApps());
                   actions.addView(toggleAppsButton, new LinearLayout.LayoutParams(-1, -2));
 
                   root.addView(actions);
 
-                  appTitle = sectionTitle("Tambah Aplikasi");
+                  appTitle = sectionTitle("Pilih APK untuk Dibuat Clone");
                   appTitle.setVisibility(View.GONE);
                   root.addView(appTitle);
 
@@ -285,6 +289,14 @@ jobs:
 
                   setContentView(mainFrame);
                   renderClones();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (cloneBox != null) {
+                      renderClones();
+                  }
               }
 
               private boolean handleTrashDrag(DragEvent event) {
@@ -332,7 +344,7 @@ jobs:
 
                   appTitle.setVisibility(appsVisible ? View.VISIBLE : View.GONE);
                   appBox.setVisibility(appsVisible ? View.VISIBLE : View.GONE);
-                  toggleAppsButton.setText(appsVisible ? "Tutup Tambah Aplikasi" : "+ Tambah Aplikasi");
+                  toggleAppsButton.setText(appsVisible ? "Tutup Pilihan APK" : "+ Tambah Clone");
 
                   if (appsVisible && appBox.getChildCount() == 0) {
                       loadApps();
@@ -342,7 +354,7 @@ jobs:
               private TextView sectionTitle(String s) {
                   TextView t = new TextView(this);
                   t.setText(s);
-                  t.setTextSize(23);
+                  t.setTextSize(22);
                   t.setTypeface(Typeface.DEFAULT_BOLD);
                   t.setTextColor(0xFF0F172A);
                   t.setPadding(0, dp(18), 0, dp(10));
@@ -435,14 +447,17 @@ jobs:
                   appsVisible = true;
                   appTitle.setVisibility(View.VISIBLE);
                   appBox.setVisibility(View.VISIBLE);
-                  toggleAppsButton.setText("Tutup Tambah Aplikasi");
+                  toggleAppsButton.setText("Tutup Pilihan APK");
 
-                  Toast.makeText(this, "Clone ditambah: " + label + " " + count, Toast.LENGTH_SHORT).show();
+                  Toast.makeText(this, "Clone dibuat. Isi nomor login untuk Clone " + count, Toast.LENGTH_SHORT).show();
+                  openClone(count, label, pkg);
               }
 
               private void deleteClone(int deleteIndex) {
                   int count = prefs.getInt("count", 0);
                   List<String> dataList = new ArrayList<>();
+                  List<String> phoneList = new ArrayList<>();
+                  List<String> noteList = new ArrayList<>();
 
                   for (int i = 1; i <= count; i++) {
                       if (i == deleteIndex) {
@@ -452,8 +467,15 @@ jobs:
                       String data = prefs.getString("clone_" + i, null);
 
                       if (data != null) {
+                          SharedPreferences profile = getSharedPreferences("clone_profile_" + i, MODE_PRIVATE);
                           dataList.add(data);
+                          phoneList.add(profile.getString("phone", ""));
+                          noteList.add(profile.getString("note", ""));
                       }
+                  }
+
+                  for (int i = 1; i <= count; i++) {
+                      getSharedPreferences("clone_profile_" + i, MODE_PRIVATE).edit().clear().apply();
                   }
 
                   SharedPreferences.Editor editor = prefs.edit();
@@ -461,7 +483,13 @@ jobs:
                   editor.putInt("count", dataList.size());
 
                   for (int i = 0; i < dataList.size(); i++) {
-                      editor.putString("clone_" + (i + 1), dataList.get(i));
+                      int newIndex = i + 1;
+                      editor.putString("clone_" + newIndex, dataList.get(i));
+
+                      SharedPreferences.Editor profileEditor = getSharedPreferences("clone_profile_" + newIndex, MODE_PRIVATE).edit();
+                      profileEditor.putString("phone", phoneList.get(i));
+                      profileEditor.putString("note", noteList.get(i));
+                      profileEditor.apply();
                   }
 
                   editor.apply();
@@ -490,7 +518,7 @@ jobs:
 
                   if (shown == 0) {
                       TextView empty = new TextView(this);
-                      empty.setText("Belum ada clone. Tekan tombol + Tambah Aplikasi.");
+                      empty.setText("Belum ada clone. Tekan tombol + Tambah Clone.");
                       empty.setTextColor(0xFF64748B);
                       empty.setPadding(0, dp(4), 0, dp(4));
                       cloneBox.addView(empty);
@@ -510,14 +538,25 @@ jobs:
                   TextView name = new TextView(this);
                   name.setText(String.format(Locale.US, "%s %d", label, index));
                   name.setTextColor(0xFF111827);
-                  name.setTextSize(14);
+                  name.setTextSize(13);
+                  name.setTypeface(Typeface.DEFAULT_BOLD);
                   name.setGravity(Gravity.CENTER);
                   name.setSingleLine(true);
                   name.setEllipsize(TextUtils.TruncateAt.END);
                   name.setPadding(0, dp(5), 0, 0);
                   card.addView(name, new LinearLayout.LayoutParams(-1, -2));
 
-                  card.setOnClickListener(v -> openApp(pkg));
+                  String phone = getSharedPreferences("clone_profile_" + index, MODE_PRIVATE).getString("phone", "");
+                  TextView status = new TextView(this);
+                  status.setText(phone.length() == 0 ? "Belum login" : "Login: " + phone);
+                  status.setTextColor(phone.length() == 0 ? 0xFFE53935 : 0xFF059669);
+                  status.setTextSize(11);
+                  status.setGravity(Gravity.CENTER);
+                  status.setSingleLine(true);
+                  status.setEllipsize(TextUtils.TruncateAt.END);
+                  card.addView(status, new LinearLayout.LayoutParams(-1, -2));
+
+                  card.setOnClickListener(v -> openClone(index, label, pkg));
 
                   card.setOnLongClickListener(v -> {
                       trashBox.setVisibility(View.VISIBLE);
@@ -542,11 +581,19 @@ jobs:
 
                   GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
                   lp.width = itemWidth;
-                  lp.height = dp(105);
+                  lp.height = dp(120);
                   lp.setMargins(dp(4), dp(4), dp(4), dp(8));
                   card.setLayoutParams(lp);
 
                   return card;
+              }
+
+              private void openClone(int index, String label, String pkg) {
+                  Intent intent = new Intent(this, CloneActivity.class);
+                  intent.putExtra("clone_index", index);
+                  intent.putExtra("clone_label", label);
+                  intent.putExtra("clone_pkg", pkg);
+                  startActivity(intent);
               }
 
               private ImageView appIcon(String pkg, ResolveInfo ri) {
@@ -566,11 +613,307 @@ jobs:
                   return icon;
               }
 
-              private void openApp(String pkg) {
-                  Intent launch = pm.getLaunchIntentForPackage(pkg);
+              private GradientDrawable cardBg(int color, int radius) {
+                  GradientDrawable bg = new GradientDrawable();
+                  bg.setColor(color);
+                  bg.setCornerRadius(radius);
+                  return bg;
+              }
+
+              private int dp(int value) {
+                  return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/nakula/anhstore/CloneActivity.java <<'EOF'
+          package com.nakula.anhstore;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Bundle;
+          import android.text.InputType;
+          import android.text.TextUtils;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          public class CloneActivity extends Activity {
+              private int cloneIndex;
+              private String cloneLabel;
+              private String clonePkg;
+              private SharedPreferences profile;
+              private PackageManager pm;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  pm = getPackageManager();
+                  cloneIndex = getIntent().getIntExtra("clone_index", 0);
+                  cloneLabel = getIntent().getStringExtra("clone_label");
+                  clonePkg = getIntent().getStringExtra("clone_pkg");
+
+                  if (cloneLabel == null || cloneLabel.length() == 0) {
+                      cloneLabel = "Clone";
+                  }
+
+                  if (clonePkg == null) {
+                      clonePkg = "";
+                  }
+
+                  if (cloneIndex <= 0) {
+                      finish();
+                      return;
+                  }
+
+                  profile = getSharedPreferences("clone_profile_" + cloneIndex, MODE_PRIVATE);
+                  render();
+              }
+
+              private void render() {
+                  String phone = profile.getString("phone", "");
+
+                  ScrollView scroll = new ScrollView(this);
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(18), dp(22), dp(18), dp(22));
+                  root.setBackgroundColor(0xFFF3F6FF);
+                  scroll.addView(root);
+
+                  root.addView(headerCard());
+
+                  if (phone.length() == 0) {
+                      root.addView(loginCard(""));
+                  } else {
+                      root.addView(dashboardCard(phone));
+                  }
+
+                  setContentView(scroll);
+              }
+
+              private View headerCard() {
+                  LinearLayout header = new LinearLayout(this);
+                  header.setOrientation(LinearLayout.VERTICAL);
+                  header.setPadding(dp(18), dp(18), dp(18), dp(18));
+                  header.setBackground(cardBg(0xFF1677FF, dp(24)));
+
+                  LinearLayout top = new LinearLayout(this);
+                  top.setOrientation(LinearLayout.HORIZONTAL);
+                  top.setGravity(Gravity.CENTER_VERTICAL);
+
+                  ImageView icon = new ImageView(this);
+                  try {
+                      icon.setImageDrawable(pm.getApplicationIcon(clonePkg));
+                  } catch (Exception e) {
+                      icon.setImageResource(android.R.drawable.sym_def_app_icon);
+                  }
+                  top.addView(icon, new LinearLayout.LayoutParams(dp(58), dp(58)));
+
+                  LinearLayout texts = new LinearLayout(this);
+                  texts.setOrientation(LinearLayout.VERTICAL);
+                  texts.setPadding(dp(12), 0, 0, 0);
+
+                  TextView title = new TextView(this);
+                  title.setText(cloneLabel + " Clone " + cloneIndex);
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(24);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  title.setSingleLine(true);
+                  title.setEllipsize(TextUtils.TruncateAt.END);
+
+                  TextView sub = new TextView(this);
+                  sub.setText("Ruang akun sendiri untuk clone ini");
+                  sub.setTextColor(0xEEFFFFFF);
+                  sub.setTextSize(14);
+
+                  texts.addView(title);
+                  texts.addView(sub);
+                  top.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
+
+                  header.addView(top);
+
+                  TextView pkg = new TextView(this);
+                  pkg.setText(clonePkg);
+                  pkg.setTextColor(0xDDFFFFFF);
+                  pkg.setTextSize(12);
+                  pkg.setPadding(0, dp(12), 0, 0);
+                  pkg.setSingleLine(true);
+                  pkg.setEllipsize(TextUtils.TruncateAt.END);
+                  header.addView(pkg);
+
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(0, 0, 0, dp(16));
+                  header.setLayoutParams(lp);
+                  return header;
+              }
+
+              private View loginCard(String oldPhone) {
+                  LinearLayout card = new LinearLayout(this);
+                  card.setOrientation(LinearLayout.VERTICAL);
+                  card.setPadding(dp(18), dp(18), dp(18), dp(18));
+                  card.setBackground(cardBg(Color.WHITE, dp(20)));
+
+                  TextView title = new TextView(this);
+                  title.setText("Menu Login Clone " + cloneIndex);
+                  title.setTextColor(0xFF0F172A);
+                  title.setTextSize(22);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  card.addView(title);
+
+                  TextView desc = new TextView(this);
+                  desc.setText("Masukkan nomor akun khusus untuk Clone " + cloneIndex + ". Contoh: 2378 / 0879 / 0859. Nomor ini disimpan terpisah dari clone lain.");
+                  desc.setTextColor(0xFF64748B);
+                  desc.setTextSize(14);
+                  desc.setPadding(0, dp(8), 0, dp(14));
+                  card.addView(desc);
+
+                  EditText phoneInput = new EditText(this);
+                  phoneInput.setHint("Nomor login Clone " + cloneIndex);
+                  phoneInput.setText(oldPhone);
+                  phoneInput.setSingleLine(true);
+                  phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
+                  phoneInput.setPadding(dp(14), dp(12), dp(14), dp(12));
+                  phoneInput.setBackground(cardStroke(0xFFFFFFFF, 0xFFE2E8F0, dp(14)));
+                  card.addView(phoneInput, new LinearLayout.LayoutParams(-1, -2));
+
+                  EditText noteInput = new EditText(this);
+                  noteInput.setHint("Catatan akun, opsional");
+                  noteInput.setText(profile.getString("note", ""));
+                  noteInput.setSingleLine(false);
+                  noteInput.setMinLines(2);
+                  noteInput.setPadding(dp(14), dp(12), dp(14), dp(12));
+                  noteInput.setBackground(cardStroke(0xFFFFFFFF, 0xFFE2E8F0, dp(14)));
+                  LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2);
+                  noteLp.setMargins(0, dp(12), 0, 0);
+                  card.addView(noteInput, noteLp);
+
+                  Button save = new Button(this);
+                  save.setText("Login / Simpan Clone " + cloneIndex);
+                  save.setOnClickListener(v -> {
+                      String phone = phoneInput.getText().toString().trim();
+                      String note = noteInput.getText().toString().trim();
+
+                      if (phone.length() == 0) {
+                          Toast.makeText(this, "Nomor login wajib diisi", Toast.LENGTH_SHORT).show();
+                          return;
+                      }
+
+                      profile.edit()
+                              .putString("phone", phone)
+                              .putString("note", note)
+                              .apply();
+
+                      Toast.makeText(this, "Clone " + cloneIndex + " login dengan nomor " + phone, Toast.LENGTH_SHORT).show();
+                      render();
+                  });
+                  LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, -2);
+                  saveLp.setMargins(0, dp(16), 0, 0);
+                  card.addView(save, saveLp);
+
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(0, 0, 0, dp(16));
+                  card.setLayoutParams(lp);
+                  return card;
+              }
+
+              private View dashboardCard(String phone) {
+                  LinearLayout card = new LinearLayout(this);
+                  card.setOrientation(LinearLayout.VERTICAL);
+                  card.setPadding(dp(18), dp(18), dp(18), dp(18));
+                  card.setBackground(cardBg(Color.WHITE, dp(20)));
+
+                  TextView title = new TextView(this);
+                  title.setText("Clone " + cloneIndex + " Aktif");
+                  title.setTextColor(0xFF0F172A);
+                  title.setTextSize(22);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  card.addView(title);
+
+                  TextView phoneView = new TextView(this);
+                  phoneView.setText("Nomor login: " + phone);
+                  phoneView.setTextColor(0xFF059669);
+                  phoneView.setTextSize(20);
+                  phoneView.setTypeface(Typeface.DEFAULT_BOLD);
+                  phoneView.setPadding(0, dp(12), 0, dp(6));
+                  card.addView(phoneView);
+
+                  String note = profile.getString("note", "");
+                  if (note.length() > 0) {
+                      TextView noteView = new TextView(this);
+                      noteView.setText("Catatan: " + note);
+                      noteView.setTextColor(0xFF334155);
+                      noteView.setTextSize(14);
+                      noteView.setPadding(0, dp(4), 0, dp(8));
+                      card.addView(noteView);
+                  }
+
+                  TextView info = new TextView(this);
+                  info.setText("Data nomor ini khusus untuk Clone " + cloneIndex + ". Clone lain bisa memakai nomor berbeda.");
+                  info.setTextColor(0xFF64748B);
+                  info.setTextSize(14);
+                  info.setPadding(0, dp(6), 0, dp(12));
+                  card.addView(info);
+
+                  Button open = new Button(this);
+                  open.setText("Buka APK Asli");
+                  open.setOnClickListener(v -> openTargetApp());
+                  card.addView(open, new LinearLayout.LayoutParams(-1, -2));
+
+                  Button edit = new Button(this);
+                  edit.setText("Ganti Nomor Login Clone " + cloneIndex);
+                  edit.setOnClickListener(v -> {
+                      setContentView(wrapView(loginCard(phone)));
+                  });
+                  LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(-1, -2);
+                  editLp.setMargins(0, dp(10), 0, 0);
+                  card.addView(edit, editLp);
+
+                  Button logout = new Button(this);
+                  logout.setText("Logout Clone Ini");
+                  logout.setOnClickListener(v -> {
+                      profile.edit().clear().apply();
+                      Toast.makeText(this, "Clone " + cloneIndex + " logout", Toast.LENGTH_SHORT).show();
+                      render();
+                  });
+                  LinearLayout.LayoutParams logoutLp = new LinearLayout.LayoutParams(-1, -2);
+                  logoutLp.setMargins(0, dp(10), 0, 0);
+                  card.addView(logout, logoutLp);
+
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(0, 0, 0, dp(16));
+                  card.setLayoutParams(lp);
+                  return card;
+              }
+
+              private View wrapView(View content) {
+                  ScrollView scroll = new ScrollView(this);
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(18), dp(22), dp(18), dp(22));
+                  root.setBackgroundColor(0xFFF3F6FF);
+                  scroll.addView(root);
+                  root.addView(headerCard());
+                  root.addView(content);
+                  return scroll;
+              }
+
+              private void openTargetApp() {
+                  Intent launch = pm.getLaunchIntentForPackage(clonePkg);
 
                   if (launch == null) {
-                      Toast.makeText(this, "App tidak bisa dibuka", Toast.LENGTH_SHORT).show();
+                      Toast.makeText(this, "APK asli tidak bisa dibuka", Toast.LENGTH_SHORT).show();
                       return;
                   }
 
@@ -580,6 +923,14 @@ jobs:
               private GradientDrawable cardBg(int color, int radius) {
                   GradientDrawable bg = new GradientDrawable();
                   bg.setColor(color);
+                  bg.setCornerRadius(radius);
+                  return bg;
+              }
+
+              private GradientDrawable cardStroke(int color, int strokeColor, int radius) {
+                  GradientDrawable bg = new GradientDrawable();
+                  bg.setColor(color);
+                  bg.setStroke(dp(1), strokeColor);
                   bg.setCornerRadius(radius);
                   return bg;
               }
@@ -596,5 +947,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ANH-store-apk
+          name: ANH-store-multi-akun-apk
           path: app/build/outputs/apk/debug/*.apk
