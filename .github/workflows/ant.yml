@@ -1,71 +1,23 @@
-name: Clone APK
-
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - "input_apk/**"
-      - ".github/workflows/clone-apk.yml"
-
-jobs:
-  clone-apk:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Ambil source code
-        uses: actions/checkout@v4
-
       - name: Cek APK input
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p input_apk
           mkdir -p output
 
-          APK_PATH="$(find input_apk -maxdepth 1 -type f -iname '*.apk' | head -n 1 || true)"
+          APK_PATH="$(find input_apk Input_apk -maxdepth 1 -type f -iname '*.apk' 2>/dev/null | head -n 1 || true)"
 
           if [ -z "$APK_PATH" ]; then
             echo "APK tidak ditemukan."
-            echo "Upload APK ke folder input_apk/"
-            echo "Contoh:"
-            echo "input_apk/kopi.apk"
+            echo "Pastikan APK ada di salah satu folder ini:"
+            echo "- input_apk/kopi.apk"
+            echo "- Input_apk/kopi.apk"
             exit 1
           fi
 
           echo "APK ditemukan: $APK_PATH"
 
-          # Biar script lama yang cari input_apk/kopi.apk tetap jalan
+          mkdir -p input_apk
           cp "$APK_PATH" input_apk/kopi.apk
 
           echo "APK_PATH=input_apk/kopi.apk" >> "$GITHUB_ENV"
-
-      - name: Jalankan script clone APK
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Mulai proses clone dari: $APK_PATH"
-
-          if [ -f "clone_apk.sh" ]; then
-            bash clone_apk.sh "$APK_PATH"
-          elif [ -f "scripts/clone_apk.sh" ]; then
-            bash scripts/clone_apk.sh "$APK_PATH"
-          elif [ -f "build_clone.sh" ]; then
-            bash build_clone.sh "$APK_PATH"
-          else
-            echo "Script clone APK tidak ditemukan."
-            echo "Pastikan ada salah satu file ini:"
-            echo "- clone_apk.sh"
-            echo "- scripts/clone_apk.sh"
-            echo "- build_clone.sh"
-            exit 1
-          fi
-
-      - name: Upload hasil APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: hasil-clone-apk
-          path: |
-            output/**/*.apk
-            *.apk
