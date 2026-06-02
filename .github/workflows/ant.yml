@@ -2,16 +2,11 @@ name: Build Clone APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "**/*.apk"
-      - ".github/workflows/**"
-      - "**/*.java"
-      - "**/*.kt"
-      - "**/*.kts"
-      - "**/*.xml"
-      - "*.gradle"
-      - "*.gradle.kts"
+    inputs:
+      apk_url:
+        description: "Link download APK langsung. Kosongkan kalau APK sudah ada di input_apk/kopi.apk"
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -27,7 +22,7 @@ jobs:
           echo "=== ISI REPO ==="
           find . -maxdepth 4 -type f | sort
 
-      - name: Cari APK input
+      - name: Ambil APK input
         shell: bash
         run: |
           set -e
@@ -35,40 +30,34 @@ jobs:
           mkdir -p input_apk
           mkdir -p output
 
-          echo "=== CARI FILE .APK ==="
+          APK_URL="${{ github.event.inputs.apk_url }}"
 
-          APK_PATH="$(find . -path './.git' -prune -o -type f -iname '*.apk' -print | head -n 1 || true)"
+          if [ -n "$APK_URL" ]; then
+            echo "Download APK dari URL..."
+            curl -L --fail --retry 3 "$APK_URL" -o input_apk/kopi.apk
+          else
+            echo "Cari APK lokal di repo..."
+            APK_PATH="$(find . -path './.git' -prune -o -type f -iname '*.apk' -print | head -n 1 || true)"
 
-          if [ -z "$APK_PATH" ]; then
-            echo "APK tidak ditemukan."
-            echo ""
-            echo "Yang benar upload APK asli seperti ini:"
-            echo "Input_apk/kopi.apk"
-            echo "atau"
-            echo "input_apk/kopi.apk"
-            echo ""
-            echo "Catatan:"
-            echo "- Input_apk harus folder"
-            echo "- kopi.apk harus file APK asli"
-            echo "- Jangan buat file kosong bernama Input_apk"
-            echo ""
-            echo "Isi repo sekarang:"
-            find . -maxdepth 4 -type f | sort
+            if [ -z "$APK_PATH" ]; then
+              echo "APK tidak ditemukan."
+              echo "Isi APK URL saat Run workflow, atau upload APK ke input_apk/kopi.apk"
+              exit 1
+            fi
+
+            echo "APK ditemukan: $APK_PATH"
+            cp "$APK_PATH" input_apk/kopi.apk
+          fi
+
+          echo "Cek APK valid..."
+          if ! unzip -t input_apk/kopi.apk >/dev/null 2>&1; then
+            echo "File bukan APK valid."
+            echo "Pastikan link yang dimasukkan adalah link download langsung file APK asli."
             exit 1
           fi
 
-          echo "APK ditemukan: $APK_PATH"
-
-          if ! unzip -t "$APK_PATH" >/dev/null 2>&1; then
-            echo "File .apk ditemukan tapi bukan APK valid: $APK_PATH"
-            echo "Upload ulang APK asli dari aplikasi target."
-            exit 1
-          fi
-
-          cp "$APK_PATH" input_apk/kopi.apk
           echo "APK_PATH=input_apk/kopi.apk" >> "$GITHUB_ENV"
-
-          echo "APK siap dipakai: input_apk/kopi.apk"
+          echo "APK siap: input_apk/kopi.apk"
 
       - name: Setup Java
         uses: actions/setup-java@v4
