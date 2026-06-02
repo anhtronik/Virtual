@@ -1,21 +1,3 @@
-name: Build Clone APK
-
-on:
-  workflow_dispatch:
-    inputs:
-      apk_url:
-        description: "Tempel link Google Drive APK di sini"
-        required: true
-        default: ""
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Ambil repo
-        uses: actions/checkout@v4
-
       - name: Ambil APK dari link
         shell: bash
         run: |
@@ -30,53 +12,35 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install gdown
 
-          echo "Download APK dari link..."
-          gdown --fuzzy "$APK_URL" -O input_apk/kopi.apk
+          echo "Ambil ID file Google Drive..."
+
+          FILE_ID="$(echo "$APK_URL" | sed -n 's#.*\/d\/\([^\/]*\).*#\1#p')"
+
+          if [ -z "$FILE_ID" ]; then
+            FILE_ID="$(echo "$APK_URL" | sed -n 's#.*id=\([^&]*\).*#\1#p')"
+          fi
+
+          if [ -z "$FILE_ID" ]; then
+            echo "Gagal ambil ID Google Drive dari link."
+            echo "Link harus seperti:"
+            echo "https://drive.google.com/file/d/ID_FILE/view"
+            exit 1
+          fi
+
+          echo "File ID: $FILE_ID"
+
+          echo "Download APK..."
+          gdown "$FILE_ID" -O input_apk/kopi.apk
 
           echo "Cek file APK..."
           ls -lh input_apk/kopi.apk
 
           if ! unzip -t input_apk/kopi.apk >/dev/null 2>&1; then
             echo "File berhasil didownload tapi bukan APK valid."
-            echo "Pastikan link Google Drive diarahkan ke file APK asli, bukan ZIP/kosong."
+            echo "Pastikan link Google Drive diarahkan ke file APK asli."
+            echo "Pastikan akses Drive: Siapa saja yang punya link."
             exit 1
           fi
 
           echo "APK_PATH=input_apk/kopi.apk" >> "$GITHUB_ENV"
           echo "APK siap dipakai: input_apk/kopi.apk"
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build APK
-        shell: bash
-        run: |
-          set -e
-
-          echo "APK yang dipakai: $APK_PATH"
-
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-            ./gradlew clean assembleDebug --stacktrace
-          elif [ -f "build.gradle.kts" ] || [ -f "build.gradle" ]; then
-            gradle clean assembleDebug --stacktrace
-          else
-            echo "build.gradle / build.gradle.kts tidak ditemukan."
-            exit 1
-          fi
-
-      - name: Upload hasil APK
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: hasil-apk
-          path: |
-            **/build/outputs/**/*.apk
-            output/**/*.apk
-            input_apk/kopi.apk
