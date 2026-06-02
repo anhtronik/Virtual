@@ -1,8 +1,0 @@
-APK_PATH="$(find input_apk -maxdepth 1 -type f -name '*.apk' | head -n 1)"
-
-if [ -z "$APK_PATH" ]; then
-  echo "APK tidak ditemukan. Upload APK ke folder input_apk, contoh: input_apk/kopi.apk"
-  exit 1
-fi
-
-echo "APK ditemukan: $APK_PATH"
