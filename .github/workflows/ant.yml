@@ -1,17 +1,45 @@
-      - name: Cek APK input
+name: Cek dan Build Clone APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "**/*.apk"
+      - ".github/workflows/**"
+      - "**/*.java"
+      - "**/*.kt"
+      - "**/*.kts"
+      - "**/*.xml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ambil repo
+        uses: actions/checkout@v4
+
+      - name: Lihat isi repo
         shell: bash
         run: |
-          set -euo pipefail
+          echo "ISI REPO:"
+          find . -maxdepth 3 -type f | sort
 
-          mkdir -p output
+      - name: Cari APK input
+        shell: bash
+        run: |
+          set -e
 
-          APK_PATH="$(find input_apk Input_apk -maxdepth 1 -type f -iname '*.apk' 2>/dev/null | head -n 1 || true)"
+          APK_PATH="$(find . -type f -iname '*.apk' | head -n 1 || true)"
 
           if [ -z "$APK_PATH" ]; then
             echo "APK tidak ditemukan."
-            echo "Pastikan APK ada di salah satu folder ini:"
-            echo "- input_apk/kopi.apk"
-            echo "- Input_apk/kopi.apk"
+            echo "Masukkan file APK ke folder Input_apk atau input_apk."
+            echo "Contoh:"
+            echo "Input_apk/kopi.apk"
+            echo ""
+            echo "Isi repo sekarang:"
+            find . -maxdepth 4 -type f | sort
             exit 1
           fi
 
@@ -21,3 +49,36 @@
           cp "$APK_PATH" input_apk/kopi.apk
 
           echo "APK_PATH=input_apk/kopi.apk" >> "$GITHUB_ENV"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build project
+        shell: bash
+        run: |
+          set -e
+
+          echo "Pakai APK: $APK_PATH"
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew clean assembleDebug
+          elif [ -f "build.gradle.kts" ] || [ -f "build.gradle" ]; then
+            gradle clean assembleDebug
+          else
+            echo "File Gradle tidak ditemukan."
+            echo "Harus ada build.gradle.kts / build.gradle / gradlew"
+            exit 1
+          fi
+
+      - name: Upload hasil
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hasil-build-apk
+          path: |
+            **/build/outputs/**/*.apk
+            input_apk/kopi.apk
