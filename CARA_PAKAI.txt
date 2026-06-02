@@ -1,0 +1,15 @@
+CARA PAKAI:
+
+1. Extract file ZIP ini.
+2. Buka folder input_apk.
+3. Masukkan APK target ke dalam folder input_apk.
+4. Rename APK menjadi:
+   kopi.apk
+
+Struktur yang benar:
+input_apk/kopi.apk
+
+Catatan:
+- File .gitkeep hanya untuk menjaga folder tetap ada.
+- .gitkeep boleh dibiarkan, tidak masalah.
+- Yang wajib ada adalah file APK asli: kopi.apk
