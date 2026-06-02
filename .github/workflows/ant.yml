@@ -1,15 +1,11 @@
-name: Cek dan Build Clone APK
+name: Build Clone APK
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "**/*.apk"
-      - ".github/workflows/**"
-      - "**/*.java"
-      - "**/*.kt"
-      - "**/*.kts"
-      - "**/*.xml"
+      - "**/*"
+      - ".github/workflows/ant.yml"
 
 jobs:
   build:
@@ -22,15 +18,85 @@ jobs:
       - name: Lihat isi repo
         shell: bash
         run: |
-          echo "ISI REPO:"
-          find . -maxdepth 3 -type f | sort
+          echo "=== ISI REPO ==="
+          find . -maxdepth 4 -type f | sort
 
       - name: Cari APK input
         shell: bash
         run: |
           set -e
 
+          mkdir -p input_apk
+          mkdir -p output
+
+          echo "=== CARI FILE APK ==="
+
+          # Cari file .apk dulu
           APK_PATH="$(find . -type f -iname '*.apk' | head -n 1 || true)"
+
+          # Kalau tidak ada .apk, coba ambil file di folder Input_apk/input_apk
+          # Ini untuk kasus file kamu sekarang: Input_apk/Input_apk
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH="$(find ./Input_apk ./input_apk -maxdepth 1 -type f 2>/dev/null | head -n 1 || true)"
+          fi
 
           if [ -z "$APK_PATH" ]; then
             echo "APK tidak ditemukan."
+            echo "Upload APK asli ke folder Input_apk atau input_apk."
+            echo "Contoh benar:"
+            echo "Input_apk/kopi.apk"
+            echo ""
+            echo "Isi repo sekarang:"
+            find . -maxdepth 4 -type f | sort
+            exit 1
+          fi
+
+          echo "File input ditemukan: $APK_PATH"
+
+          # Cek file harus berbentuk APK/ZIP
+          if ! unzip -t "$APK_PATH" >/dev/null 2>&1; then
+            echo "File ditemukan tapi bukan APK/ZIP valid: $APK_PATH"
+            echo "Pastikan yang diupload adalah file APK asli."
+            exit 1
+          fi
+
+          cp "$APK_PATH" input_apk/kopi.apk
+          echo "APK_PATH=input_apk/kopi.apk" >> "$GITHUB_ENV"
+
+          echo "APK siap dipakai: input_apk/kopi.apk"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -e
+
+          echo "APK yang dipakai: $APK_PATH"
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew clean assembleDebug --stacktrace
+          elif [ -f "build.gradle.kts" ] || [ -f "build.gradle" ]; then
+            gradle clean assembleDebug --stacktrace
+          else
+            echo "build.gradle / build.gradle.kts tidak ditemukan."
+            exit 1
+          fi
+
+      - name: Upload hasil APK
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hasil-apk
+          path: |
+            **/build/outputs/**/*.apk
+            output/**/*.apk
+            input_apk/kopi.apk
